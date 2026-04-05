@@ -26,14 +26,14 @@ ramSlider.addEventListener('input', (e) => {
     eel.save_settings({ ram: parseInt(val) });
 });
 
-// Window controls
-document.getElementById('close-btn').addEventListener('click', () => {
-    window.close(); // Or eel.close_app()
-});
-
-document.getElementById('minimize-btn').addEventListener('click', () => {
-    eel.minimize_window();
-});
+//// Window controls - кнопки "закрыть" и "свернуть" в интерфейсе
+//document.getElementById('close-btn').addEventListener('click', () => {
+//    window.close(); // Or eel.close_app()
+//});
+//
+//document.getElementById('minimize-btn').addEventListener('click', () => {
+//    eel.minimize_window();
+//});
 
 // Play logic
 const playBtn = document.getElementById('play-btn');
@@ -41,23 +41,20 @@ const statusText = document.getElementById('status-text');
 const progressBar = document.getElementById('progress-bar');
 const loginOverlay = document.getElementById('login-overlay');
 
-let currentVersion = '1.21.1';
+let currentVersion = 'KsuSerVer Season 2';
 
 playBtn.addEventListener('click', async () => {
     if (playBtn.classList.contains('disabled')) return;
-
-    // Check if logged in
-    const settings = await eel.get_settings()();
-    if (!settings.username || !settings.password) {
-        showLogin();
-        return;
-    }
-
+    // Check if logged in - отключил, чтобы работала кнопка скипа логина (режим оффлайн)
+//    const settings = await eel.get_settings()();
+//    if (!settings.username || !settings.password) {
+//        showLogin();
+//        return;
+//    }
     playBtn.classList.add('disabled');
     playBtn.style.opacity = '0.5';
     statusText.textContent = "Инициализация...";
     progressBar.style.width = '5%';
-
     // Start installation/launch process
     eel.start_launch(currentVersion);
 });
@@ -72,29 +69,35 @@ loginBtn.addEventListener('click', async () => {
     const email = document.getElementById('email-input').value;
     const pass = document.getElementById('pass-input').value;
     const totp = document.getElementById('totp-input') ? document.getElementById('totp-input').value : null;
-
     if (!email || !pass) {
         alert('Введите почту и пароль!');
         return;
     }
-
     loginBtn.textContent = 'Входим...';
     loginBtn.style.opacity = '0.5';
-
     add_log(`Попытка входа: ${email}`);
-    // If TOTP is visible/exists, pass it too
-    const result = await eel.login(email, pass, totp)();
-
+    const result = await eel.login(email, pass, totp)(); // If TOTP is visible/exists, pass it too
     if (result.success) {
         add_log(`Вход выполнен: ${result.username}`);
         loginOverlay.classList.add('hidden');
         statusText.textContent = `Привет, ${result.username}!`;
+        loginBtn.textContent = 'ВОЙТИ';
+        loginBtn.style.opacity = '1';
     } else {
         add_log(`Ошибка входа: ${result.error}`);
         alert(result.error);
         loginBtn.textContent = 'ВОЙТИ В АККАУНТ';
         loginBtn.style.opacity = '1';
     }
+});
+
+// Кнопка скипа логина (режим оффлайн)
+const loginSkipBtn = document.getElementById('login-skip-btn');
+loginSkipBtn.addEventListener('click', async () => {
+    const result = await eel.skip_login()();
+    add_log(`Тестовый вход`);
+    loginOverlay.classList.add('hidden');
+    statusText.textContent = `Привет, ${result.username}!`;
 });
 
 // Expose functions to Python
@@ -128,16 +131,12 @@ eel.expose(add_log);
 function add_log(text) {
     const logContainer = document.getElementById('status-log');
     if (!logContainer) return;
-
     const logLine = document.createElement('div');
     logLine.className = 'log-line';
-
     const time = new Date().toLocaleTimeString();
     logLine.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-text">${text}</span>`;
-
     logContainer.appendChild(logLine);
     logContainer.scrollTop = logContainer.scrollHeight;
-
     if (logContainer.childNodes.length > 50) {
         logContainer.removeChild(logContainer.firstChild);
     }
@@ -154,7 +153,8 @@ async function init() {
     if (settings.path) {
         pathInput.value = settings.path;
     }
-
+    loadVersions(settings); // Pre-load versions in background
+    //    eel.get_versions_list()(); - заменено строкой выше
     // Save manually edited path
     pathInput.onchange = () => {
         const newPath = pathInput.value.trim();
@@ -163,14 +163,10 @@ async function init() {
             add_log(`Путь вручную изменен на: ${newPath}`);
         }
     };
-
-    // Pre-load versions in background
-    eel.get_versions()();
-
     // Delay autologin slightly to ensure stable connection
     setTimeout(async () => {
         if (settings.username && settings.password) {
-            update_status("Авто-логин...", 5);
+            update_status("Авто-логин...", 80);
             add_log("Попытка автологина...");
             const result = await eel.login(settings.username, settings.password)();
             if (result.success) {
@@ -201,12 +197,10 @@ const updateBtn = document.getElementById('update-btn');
 if (updateBtn) {
     updateBtn.addEventListener('click', () => {
         if (updateBtn.classList.contains('disabled')) return;
-        
         updateBtn.classList.add('disabled');
         updateBtn.textContent = "ЗАГРУЗКА...";
         add_log("Запуск принудительного обновления модпака...");
         eel.update_modpack(currentVersion);
-        
         // Reset button after some time or via a status check
         // For now, we'll let the user wait for the status text to finish
         setTimeout(() => {
@@ -259,10 +253,10 @@ const subTabs = document.querySelectorAll('.sub-tab');
 subTabs.forEach(tab => {
     tab.onclick = () => {
         if (tab.classList.contains('active')) return;
-        
+
         subTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
+
         currentModrinthType = tab.dataset.type;
         currentRPPage = 1;
         loadResourcePacks();
@@ -282,39 +276,40 @@ if (rpSearchInput) {
     });
 }
 
+// Подгрузка ресурспаков с модринта
 async function loadResourcePacks() {
     if (!rpGrid) return;
-    
     add_log(`Загрузка ${currentModrinthType === 'shader' ? 'шейдеров' : 'ресурспаков'}...`);
     rpGrid.innerHTML = '<div class="status-msg">Синхронизация базы Modrinth...</div>';
     rpPagination.innerHTML = '';
-
-    const gameVersion = currentVersion || '1.21.1';
-
+    gameVersion = '1.21.1'; // динамическая подгрузка версий
+    const versions = await eel.get_versions_list()();
+    for (let i = 0; i < versions.length; i++) {
+        if (versions[i].name === currentVersion) {
+            gameVersion = versions[i].minecraft_version;
+            break;
+        }
+    }
     // Fetch from backend
     const result = await eel.search_modrinth(currentRPQuery, gameVersion, currentModrinthType, currentRPPage)();
-    
     if (result.error) {
         rpGrid.innerHTML = `<div class="status-msg" style="color: #ef4444;">Ошибка: ${result.error}</div>`;
         return;
     }
-
     renderRPPagination(result.total_hits || 0);
-
     if (!result.hits || result.hits.length === 0) {
-        rpGrid.innerHTML = '<div class="status-msg">Ничего не найдено :( Попробуйте другой запрос или смените вкладку.</div>';
+        rpGrid.innerHTML = '<div class="status-msg">Ничего не найдено :(</div>';
         return;
     }
-
     renderRPCards(result.hits);
 }
 
+// Карточки модринта
 function renderRPCards(hits) {
     rpGrid.innerHTML = '';
     hits.forEach(hit => {
         const card = document.createElement('div');
         card.className = 'rp-card glass';
-        
         // Smarter download formatting
         let downloads = hit.downloads;
         if (downloads >= 1000000) {
@@ -322,7 +317,6 @@ function renderRPCards(hits) {
         } else if (downloads >= 1000) {
             downloads = (downloads / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
         }
-        
         card.innerHTML = `
             <img src="${hit.icon_url || 'https://placehold.co/400x400?text=No+Icon'}" class="rp-thumb" alt="${hit.title}">
             <div class="rp-info">
@@ -334,15 +328,11 @@ function renderRPCards(hits) {
                 <button class="primary-btn install-btn" data-id="${hit.project_id}" style="padding: 8px 15px; font-size: 0.7rem;">Установить</button>
             </div>
         `;
-        
         const installBtn = card.querySelector('.install-btn');
         installBtn.onclick = async () => {
             installBtn.textContent = '...';
             installBtn.classList.add('disabled');
-            
-            // Determine target folder
-            const folder = currentModrinthType === 'shader' ? 'shaderpacks' : 'resourcepacks';
-            
+            const folder = currentModrinthType === 'shader' ? 'shaderpacks' : 'resourcepacks'; // Determine target folder
             const res = await eel.install_modrinth(hit.project_id, currentVersion, folder)();
             if (res.success) {
                 installBtn.textContent = 'ГОТОВО!';
@@ -359,7 +349,6 @@ function renderRPCards(hits) {
                 }, 2000);
             }
         };
-        
         rpGrid.appendChild(card);
     });
 }
@@ -368,15 +357,12 @@ function renderRPPagination(totalHits) {
     rpPagination.innerHTML = '';
     const totalPages = Math.min(Math.ceil(totalHits / RP_LIMIT), 20); // Cap at 20 pages for stability
     if (totalPages <= 1) return;
-
     const maxVisible = 5;
     let startPage = Math.max(1, currentRPPage - 2);
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
     if (endPage - startPage < maxVisible - 1) {
         startPage = Math.max(1, endPage - maxVisible + 1);
     }
-
     for (let i = startPage; i <= endPage; i++) {
         const btn = document.createElement('button');
         btn.className = `page-btn ${i === currentRPPage ? 'active' : ''}`;
@@ -403,8 +389,67 @@ navBtns.forEach(btn => {
 
 function onLoginSuccess(username) {
     statusText.textContent = `Привет, ${username}!`;
-    update_status("Готов к запуску");
+    update_status("Готов к запуску", 0);
     add_log(`Вход выполнен: ${username}`);
 }
+
+// Загрузка версий при старте
+async function loadVersions(settings) {
+    const select = document.getElementById('version-select');
+    try {
+        // Получаем данные из Python
+        const versions = await eel.get_versions_list()();
+        // Очищаем select
+        select.innerHTML = '';
+        // Добавляем опции
+        versions.forEach(version => {
+            const option = document.createElement('option');
+            option.value = version.name;
+            option.textContent = `${version.name} (${version.minecraft_version})`;
+            select.appendChild(option);
+        });
+        // Если есть сохраненная версия, выбираем её
+        const savedVersion = localStorage.getItem('selectedVersion');
+        if (savedVersion && select.querySelector(`option[value="${savedVersion}"]`)) {
+            select.value = savedVersion;
+        }
+        for (let i = 0; i < versions.length; i++) {
+            if (versions[i].name === settings.selected_version) {
+                select.selectedIndex = i;
+                currentVersion = versions[i].name;
+                break;
+            }
+        }
+        console.log(`Loaded ${versions.length} versions`);
+    } catch (error) {
+        console.error('Ошибка загрузки версий:', error);
+        select.innerHTML = '<option value="">Ошибка загрузки версий</option>';
+    }
+}
+
+// Обновление информации при выборе версии
+async function onVersionChange() {
+    const select = document.getElementById('version-select');
+    const selectedVersion = select.value;
+//    const selectedText = select.options[select.selectedIndex]?.text;
+    // Сохраняем выбор
+    if (selectedVersion) {
+//        localStorage.setItem('selectedVersion', selectedVersion);
+        // Отправляем выбор в Python
+        try {
+//            const result = await eel.on_version_selected(selectedVersion)();
+            eel.save_settings({ selected_version: selectedVersion });
+            currentVersion = selectedVersion;
+            console.log('Версия сохранена в настройки');
+        } catch (error) {
+            console.error('Версия не сохранена в настройки:', error);
+        }
+    }
+}
+
+// Обработчики событий
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('version-select').addEventListener('change', onVersionChange);
+});
 
 init();
