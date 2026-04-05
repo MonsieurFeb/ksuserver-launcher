@@ -1,5 +1,3 @@
-# pyinstaller --onefile --noconsole --icon=view/app.ico --name=KsuLauncher --add-data "view;view" --add-binary "authlib-injector-1.2.7.jar;." controller.py
-# внутри папки ksu_launcher_app
 import os
 import uuid
 import requests
@@ -7,16 +5,16 @@ import json
 import shutil
 import threading
 import zipfile
-import gdown
-import minecraft_launcher_lib
 import subprocess
 import sys
-import pandas as pd
 import webbrowser
 import time
-from nbt import nbt
 import tkinter as tk
 from tkinter import filedialog
+import gdown
+import minecraft_launcher_lib
+from nbt import nbt
+import pandas as pd
 
 VERSIONS_URL = 'https://docs.google.com/spreadsheets/d/1rW6vIDIhrlXweWmcSU3eNVbSrhQjxs346XdkWJlaNUw/export?format=csv'
 AUTHLIB_URL = "https://authserver.ely.by"

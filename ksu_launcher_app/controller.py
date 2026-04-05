@@ -1,6 +1,6 @@
 import threading
-import eel
 from model import LauncherAPI
+import eel
 
 launcher = LauncherAPI()
 
