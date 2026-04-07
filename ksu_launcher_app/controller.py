@@ -56,6 +56,22 @@ def logout():
 def get_versions_list():
     return launcher.get_versions_list()
 
+@eel.expose
+def get_mods_list():
+    return launcher.get_mods_list()
+
+@eel.expose
+def pick_jar_file():
+    return launcher.pick_jar_file()
+
+@eel.expose
+def add_user_mod(src_path):
+    return launcher.add_user_mod(src_path)
+
+@eel.expose
+def delete_user_mod(filename):
+    return launcher.delete_user_mod(filename)
+
 # @eel.expose
 # def on_version_selected(version):
 #     return launcher.on_version_selected(version)

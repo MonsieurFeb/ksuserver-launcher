@@ -42,6 +42,53 @@ const progressBar = document.getElementById('progress-bar');
 const loginOverlay = document.getElementById('login-overlay');
 
 let currentVersion = 'KsuSerVer Season 2';
+let gameVersion = '1.21.1';
+
+// Custom dropdown logic
+function initCustomSelect() {
+    const wrapper = document.getElementById('custom-version-select');
+    if (!wrapper) return;
+    const select = wrapper.querySelector('.custom-select');
+    const trigger = wrapper.querySelector('.custom-select-trigger');
+    const triggerText = wrapper.querySelector('.custom-select-text');
+    const optionsContainer = wrapper.querySelector('.custom-options');
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        select.classList.toggle('open');
+    });
+    document.addEventListener('click', () => select.classList.remove('open'));
+
+    wrapper._setOptions = function(versions, savedVersion) {
+        optionsContainer.innerHTML = '';
+        versions.forEach((version, i) => {
+            const opt = document.createElement('div');
+            opt.className = 'custom-option';
+            opt.textContent = `${version.name} (${version.minecraft_version})`;
+            opt.dataset.value = version.name;
+            if (version.name === savedVersion || i === 0) {
+                opt.classList.add('selected');
+                triggerText.textContent = opt.textContent;
+                currentVersion = version.name;
+            }
+            opt.addEventListener('click', (e) => {
+                e.stopPropagation();
+                optionsContainer.querySelectorAll('.custom-option').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                triggerText.textContent = opt.textContent;
+                currentVersion = version.name;
+                eel.save_settings({ selected_version: version.name });
+                select.classList.remove('open');
+                add_log(`Версия выбрана: ${version.name}`);
+            });
+            optionsContainer.appendChild(opt);
+        });
+    };
+    wrapper._setLoading = function(text) {
+        triggerText.textContent = text;
+        optionsContainer.innerHTML = '';
+    };
+}
 
 playBtn.addEventListener('click', async () => {
     if (playBtn.classList.contains('disabled')) return;
@@ -333,7 +380,7 @@ function renderRPCards(hits) {
             installBtn.textContent = '...';
             installBtn.classList.add('disabled');
             const folder = currentModrinthType === 'shader' ? 'shaderpacks' : 'resourcepacks'; // Determine target folder
-            const res = await eel.install_modrinth(hit.project_id, currentVersion, folder)();
+            const res = await eel.install_modrinth(hit.project_id, gameVersion, folder)();
             if (res.success) {
                 installBtn.textContent = 'ГОТОВО!';
                 installBtn.style.background = '#22c55e';
@@ -395,61 +442,114 @@ function onLoginSuccess(username) {
 
 // Загрузка версий при старте
 async function loadVersions(settings) {
-    const select = document.getElementById('version-select');
+    const wrapper = document.getElementById('custom-version-select');
+    if (!wrapper) return;
     try {
-        // Получаем данные из Python
         const versions = await eel.get_versions_list()();
-        // Очищаем select
-        select.innerHTML = '';
-        // Добавляем опции
-        versions.forEach(version => {
-            const option = document.createElement('option');
-            option.value = version.name;
-            option.textContent = `${version.name} (${version.minecraft_version})`;
-            select.appendChild(option);
-        });
-        // Если есть сохраненная версия, выбираем её
-        const savedVersion = localStorage.getItem('selectedVersion');
-        if (savedVersion && select.querySelector(`option[value="${savedVersion}"]`)) {
-            select.value = savedVersion;
+        if (!versions || versions.length === 0) {
+            wrapper._setLoading('Нет версий');
+            return;
         }
-        for (let i = 0; i < versions.length; i++) {
-            if (versions[i].name === settings.selected_version) {
-                select.selectedIndex = i;
-                currentVersion = versions[i].name;
-                break;
-            }
-        }
+        const savedVersion = settings.selected_version || null;
+        wrapper._setOptions(versions, savedVersion);
         console.log(`Loaded ${versions.length} versions`);
     } catch (error) {
         console.error('Ошибка загрузки версий:', error);
-        select.innerHTML = '<option value="">Ошибка загрузки версий</option>';
-    }
-}
-
-// Обновление информации при выборе версии
-async function onVersionChange() {
-    const select = document.getElementById('version-select');
-    const selectedVersion = select.value;
-//    const selectedText = select.options[select.selectedIndex]?.text;
-    // Сохраняем выбор
-    if (selectedVersion) {
-//        localStorage.setItem('selectedVersion', selectedVersion);
-        // Отправляем выбор в Python
-        try {
-//            const result = await eel.on_version_selected(selectedVersion)();
-            eel.save_settings({ selected_version: selectedVersion });
-            currentVersion = selectedVersion;
-            console.log('Версия сохранена в настройки');
-        } catch (error) {
-            console.error('Версия не сохранена в настройки:', error);
-        }
+        wrapper._setLoading('Ошибка загрузки');
     }
 }
 
 // Обработчики событий
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('version-select').addEventListener('change', onVersionChange);
+    initCustomSelect();
 });
 
 init();
+
+// ====== MODS SCREEN ======
+let allMods = [];
+
+async function loadMods() {
+    const list = document.getElementById('mods-list');
+    list.innerHTML = '<div class="status-msg">Загрузка модов...</div>';
+    try {
+        allMods = await eel.get_mods_list()();
+        renderMods(allMods);
+    } catch(e) {
+        list.innerHTML = '<div class="status-msg" style="color:#ef4444;">Ошибка загрузки</div>';
+    }
+}
+
+function renderMods(mods) {
+    const list = document.getElementById('mods-list');
+    const query = document.getElementById('mods-search-input').value.toLowerCase();
+    const filtered = mods.filter(m => m.name.toLowerCase().includes(query) || m.filename.toLowerCase().includes(query));
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="status-msg">Моды не найдены</div>';
+        return;
+    }
+
+    list.innerHTML = '';
+    filtered.forEach(mod => {
+        const item = document.createElement('div');
+        item.className = 'mod-item';
+        item.innerHTML = `
+            <div class="mod-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+            </div>
+            <div class="mod-info">
+                <div class="mod-name">${mod.name}</div>
+                <div class="mod-filename">${mod.filename}</div>
+            </div>
+            ${mod.is_user_mod ? '<span class="mod-badge-user">МОЙ МОД</span>' : ''}
+            ${mod.is_user_mod ? `<button class="mod-delete-btn" data-filename="${mod.filename}" title="Удалить">
+                <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+            </button>` : ''}
+        `;
+
+        if (mod.is_user_mod) {
+            const delBtn = item.querySelector('.mod-delete-btn');
+            delBtn.addEventListener('click', async () => {
+                delBtn.innerHTML = '...'; delBtn.style.pointerEvents = 'none';
+                const res = await eel.delete_user_mod(mod.filename)();
+                if (res.success) {
+                    item.style.opacity = '0'; item.style.transform = 'translateX(20px)';
+                    setTimeout(() => { item.remove(); add_log(`Мод удалён: ${mod.filename}`); }, 300);
+                } else {
+                    delBtn.innerHTML = '✕'; delBtn.style.pointerEvents = '';
+                    add_log(`Ошибка: ${res.error}`);
+                }
+            });
+        }
+        list.appendChild(item);
+    });
+}
+
+// Поиск по модам
+document.getElementById('mods-search-input').addEventListener('input', () => renderMods(allMods));
+
+// Добавить мод
+document.getElementById('add-mod-btn').addEventListener('click', async () => {
+    const path = await eel.pick_jar_file()();
+    if (!path) return;
+    const btn = document.getElementById('add-mod-btn');
+    btn.textContent = 'Копирование...'; btn.style.opacity = '0.6';
+    const res = await eel.add_user_mod(path)();
+    btn.textContent = '+ Добавить мод'; btn.style.opacity = '1';
+    if (res.success) {
+        add_log(`Мод добавлен: ${res.filename}`);
+        await loadMods();
+    } else {
+        add_log(`Ошибка: ${res.error}`);
+    }
+});
+
+// Загружаем моды при переходе на вкладку
+navBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.getAttribute('data-target') === 'mods-screen') {
+            loadMods();
+        }
+    });
+});

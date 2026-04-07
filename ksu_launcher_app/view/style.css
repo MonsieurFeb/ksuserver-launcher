@@ -490,6 +490,7 @@ input[type="range"] {
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -553,50 +554,186 @@ input[type="range"] {
     margin-left: 10px;
 }
 
-/* Выпадающий список */
-select {
+/* Mods Screen */
+.mods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.mod-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+}
+
+.mod-item:hover {
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.07);
+}
+
+.mod-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+}
+
+.mod-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.mod-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mod-filename {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    font-family: monospace;
+}
+
+.mod-badge-user {
+    background: rgba(99, 102, 241, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: #a5b4fc;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mod-delete-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mod-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.6);
+}
+
+
+/* Выпадающий список - Custom */
+.custom-select-wrapper {
+    position: relative;
+    user-select: none;
     width: 250px;
-    background: rgba(20, 20, 30, 0.85); /* Тёмный полупрозрачный фон */
-    backdrop-filter: blur(10px);        /* Размытие фона */
-    color: #ffffff;                     /* Белый текст */
+}
+.custom-select {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+.custom-select-trigger {
+    background: rgba(20, 20, 30, 0.85);
+    backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
     padding: 12px 16px;
-    font-size: 14px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     cursor: pointer;
     transition: all 0.3s ease;
+    font-size: 14px;
 }
-
-/* Эффект при наведении */
-select:hover {
+.custom-select-trigger:hover {
     border-color: rgba(100, 150, 255, 0.5);
 }
-
-/* Эффект при фокусе */
-select:focus {
-    outline: none;
+.custom-select.open .custom-select-trigger {
     border-color: rgba(100, 150, 255, 0.8);
     box-shadow: 0 0 10px rgba(100, 150, 255, 0.3);
+    border-radius: 12px 12px 0 0;
 }
-
-/* Стиль для опций (в выпадающем списке) */
-select option {
-    background: rgba(15, 15, 25, 0.95);
-    color: #ffffff;
-    padding: 10px;
+.arrow {
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid white;
+    border-bottom: 2px solid white;
+    transform: rotate(45deg);
+    transition: transform 0.3s ease;
+    margin-bottom: 4px;
 }
-
-/* Стиль для опции при наведении */
-select option:hover {
-    background: rgba(50, 80, 150, 0.8);
+.custom-select.open .arrow {
+    transform: rotate(-135deg);
+    margin-top: 4px;
+    margin-bottom: 0px;
 }
-
-/* Для Chrome/Edge (кастомная стрелка) */
-select {
-    -webkit-appearance: none;
-    appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 40px;
+.custom-options {
+    position: absolute;
+    display: block;
+    top: 100%;
+    left: 0;
+    right: 0;
+    border: 1px solid rgba(100, 150, 255, 0.4);
+    border-top: 0;
+    background: rgba(10, 10, 20, 0.45);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 0 0 12px 12px;
+    margin-top: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px);
+    transition: all 0.25s ease;
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.custom-select.open .custom-options {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: all;
+    transform: translateY(0);
+}
+.custom-option {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.custom-option:last-child {
+    border-bottom: none;
+}
+.custom-option:hover, .custom-option.selected {
+    background: rgba(59, 130, 246, 0.4);
+    color: white;
 }

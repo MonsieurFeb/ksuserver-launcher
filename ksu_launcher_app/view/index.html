@@ -24,6 +24,9 @@
             <button class="nav-btn" data-target="rp-screen" title="Ресурспаки">
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12,2L4.5,20.29L5.21,21L12,18L18.79,21L19.5,20.29L12,2Z"/></svg>
             </button>
+            <button class="nav-btn" data-target="mods-screen" title="Моды">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+            </button>
             <button class="nav-btn" data-target="settings-screen" title="Настройки">
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.96 21.66,8.75L19.66,5.29C19.54,5.08 19.28,5 19.06,5.09L16.56,6.1C16.04,5.7 15.47,5.38 14.86,5.12L14.47,2.45C14.43,2.22 14.24,2.05 14,2.05H10C9.76,2.05 9.57,2.22 9.53,2.45L9.14,5.12C8.53,5.38 7.96,5.7 7.44,6.1L4.94,5.09C4.72,5 4.46,5.08 4.34,5.29L2.34,8.75C2.22,8.96 2.27,9.22 2.46,9.37L4.57,11.03C4.53,12.65 4.5,12.33 4.5,12C4.5,11.67 4.53,11.35 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.04 2.34,15.25L4.34,18.71C4.46,18.92 4.72,19 4.94,18.91L7.44,17.9C7.96,18.3 8.53,18.62 9.14,18.88L9.53,21.55C9.57,21.78 9.76,21.95 10,21.95H14C14.24,21.95 14.43,21.78 14.47,21.55L14.86,18.88C15.47,18.62 16.04,18.3 16.56,17.9L19.06,18.91C19.28,19 19.54,18.92 19.66,18.71L21.66,15.25C21.78,15.04 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
             </button>
@@ -57,10 +60,16 @@
                     </div>
                 </div>
 
-                <div>
-                    <select id="version-select">
-                        <option value="">Загрузка версий...</option>
-                    </select>
+                <div class="custom-select-wrapper" id="custom-version-select">
+                    <div class="custom-select">
+                        <div class="custom-select-trigger">
+                            <span class="custom-select-text">Загрузка версий...</span>
+                            <div class="arrow"></div>
+                        </div>
+                        <div class="custom-options" id="custom-version-options">
+                            <!-- Options -->
+                        </div>
+                    </div>
                 </div>
 
                 <button id="play-btn" class="primary-btn">
@@ -95,6 +104,24 @@
                     <label>Модпак (выбрать и отследить статус можно на вкладке "главная")</label>
                     <button id="update-btn" class="primary-btn" style="padding: 10px 20px; font-size: 0.8rem;">УСТАНОВИТЬ ОБНОВЛЕНИЕ</button>
                 </div>
+            </div>
+        </section>
+
+        <!-- Mods Screen -->
+        <section id="mods-screen" class="screen">
+            <div class="screen-header">
+                <div class="header-left">
+                    <h2>Моды</h2>
+                </div>
+                <div style="display:flex; gap:12px; align-items:center;">
+                    <div class="search-box glass" style="width:260px; padding: 10px 20px;">
+                        <input type="text" id="mods-search-input" placeholder="Поиск по названию..." style="background:none; border:none; color:white; width:100%; outline:none; font-size:0.9rem;">
+                    </div>
+                    <button id="add-mod-btn" class="primary-btn" style="padding:10px 20px; font-size:0.85rem; white-space:nowrap;">+ Добавить мод</button>
+                </div>
+            </div>
+            <div id="mods-list" class="mods-list">
+                <div class="status-msg">Загрузка модов...</div>
             </div>
         </section>
 
