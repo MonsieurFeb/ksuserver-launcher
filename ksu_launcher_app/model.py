@@ -22,16 +22,9 @@ AUTHLIB_URL = "https://authserver.ely.by"
 class LauncherAPI:
     def __init__(self):
         # Global fix: Always use the root of C: to avoid Cyrillic/Admin issues in AppData
-        self.minecraft_dir = os.path.dirname(minecraft_launcher_lib.utils.get_minecraft_directory())+"\\.ksulauncher"
+        self.minecraft_dir = "C:\\.ksulauncher"
         # Ensure directories exist
-        try:
-            if not os.path.exists(self.minecraft_dir):
-                os.makedirs(self.minecraft_dir, exist_ok=True)
-        except:
-            # If C:\ is locked (rare for a folder starting with dot), use a non-Cyrillic fallback
-            # self.minecraft_dir = os.path.abspath(os.path.join(os.path.expanduser("~"), "KsuLauncher"))
-            self.minecraft_dir = "C:\\.ksulauncher"
-            os.makedirs(self.minecraft_dir, exist_ok=True)
+        os.makedirs(self.minecraft_dir, exist_ok=True)
         self.versions_data = []
         self.selected_version = None
         self.current_user = None
@@ -182,6 +175,13 @@ class LauncherAPI:
                         java_path = vm[0]
                     except: java_path = "java"
                     loader.install(info['minecraft_version'], game_dir, loader_version=info['modloader_version'], java=java_path)
+                # Servers list — only on first install
+                try:
+                    report_callback("Загрузка списка серверов...", 75)
+                    servers_dat_path = os.path.join(game_dir, "servers.dat")
+                    gdown.download(id="1ojv4-e3R_RA8r2Ngrxg57bT2wac-dHq0", output=servers_dat_path, quiet=True)
+                except Exception:
+                    pass
             else:
                 report_callback("Найден готовый клиент...", 40)
             # 3. Modpack (Smart Start Skip)
@@ -190,10 +190,11 @@ class LauncherAPI:
                 self._download_modpack(info, game_dir, report_callback)
             else:
                 report_callback("Клиент готов...", 80)
-            # 4. Servers List
+            # 4. Servers entry
             if info['serv_entry']:
                 self.add_server_to_list(game_dir, version_name, info['serv_entry'])
                 report_callback("Загрузка серверов...", 90)
+
             # 5. Launch
             report_callback("Запуск игры!", 100)
             options = {
@@ -309,6 +310,93 @@ class LauncherAPI:
             print(f"Error adding server")
             return False
 
+
+    # ====== MOD MANAGEMENT ======
+    USER_MODS_FILE = "user_mods.json"
+
+    def _get_mods_dir(self):
+        game_dir = self.settings.get("path", self.minecraft_dir)
+        return os.path.join(game_dir, "mods")
+
+    def _load_user_mods_registry(self):
+        """Returns a set of filenames that were added by the user."""
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)
+        if os.path.exists(registry_path):
+            try:
+                with open(registry_path, 'r', encoding='utf-8') as f:
+                    return set(json.load(f))
+            except: pass
+        return set()
+
+    def _save_user_mods_registry(self, registry: set):
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)
+        with open(registry_path, 'w', encoding='utf-8') as f:
+            json.dump(list(registry), f, indent=2)
+
+    def get_mods_list(self):
+        """Returns list of {name, filename, is_user_mod} for all .jar files in mods dir."""
+        mods_dir = self._get_mods_dir()
+        user_mods = self._load_user_mods_registry()
+        result = []
+        if not os.path.exists(mods_dir):
+            return result
+        actual_jars = set()
+        for fname in sorted(os.listdir(mods_dir)):
+            if fname.lower().endswith('.jar'):
+                actual_jars.add(fname)
+                result.append({
+                    'name': fname.replace('.jar', '').replace('-', ' ').replace('_', ' '),
+                    'filename': fname,
+                    'is_user_mod': fname in user_mods
+                })
+        # Auto-clean stale entries from user_mods registry
+        stale = user_mods - actual_jars
+        if stale:
+            self._save_user_mods_registry(user_mods - stale)
+        return result
+
+    def add_user_mod(self, src_path):
+        """Copy a .jar file to the mods folder and register it as a user mod."""
+        try:
+            if not src_path or not src_path.lower().endswith('.jar'):
+                return {'success': False, 'error': 'Только .jar файлы!'}
+            mods_dir = self._get_mods_dir()
+            os.makedirs(mods_dir, exist_ok=True)
+            fname = os.path.basename(src_path)
+            dest = os.path.join(mods_dir, fname)
+            shutil.copy2(src_path, dest)
+            registry = self._load_user_mods_registry()
+            registry.add(fname)
+            self._save_user_mods_registry(registry)
+            return {'success': True, 'filename': fname}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def delete_user_mod(self, filename):
+        """Delete a user-added mod from the mods folder."""
+        try:
+            registry = self._load_user_mods_registry()
+            if filename not in registry:
+                return {'success': False, 'error': 'Нельзя удалить мод из модпака'}
+            mods_dir = self._get_mods_dir()
+            path = os.path.join(mods_dir, filename)
+            if os.path.exists(path):
+                os.remove(path)
+            registry.discard(filename)
+            self._save_user_mods_registry(registry)
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def pick_jar_file(self):
+        """Open file dialog to pick a .jar file."""
+        root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
+        path = filedialog.askopenfilename(
+            initialdir=self._get_mods_dir(),
+            filetypes=[("JAR files", "*.jar")]
+        )
+        root.destroy()
+        return path.replace("/", "\\") if path else None
 
     # Для работы authlib-injector в пакете
     def resource_path(self, relative_path):
