@@ -57,20 +57,20 @@ def get_versions_list():
     return launcher.get_versions_list()
 
 @eel.expose
-def get_mods_list():
-    return launcher.get_mods_list()
+def get_mods_list(version_name):
+    return launcher.get_mods_list(version_name)
 
 @eel.expose
-def pick_jar_file():
-    return launcher.pick_jar_file()
+def pick_jar_file(version_name):
+    return launcher.pick_jar_file(version_name)
 
 @eel.expose
-def add_user_mod(src_path):
-    return launcher.add_user_mod(src_path)
+def add_user_mod(src_path, version_name):
+    return launcher.add_user_mod(src_path, version_name)
 
 @eel.expose
-def delete_user_mod(filename):
-    return launcher.delete_user_mod(filename)
+def delete_user_mod(filename, version_name):
+    return launcher.delete_user_mod(filename, version_name)
 
 # @eel.expose
 # def on_version_selected(version):

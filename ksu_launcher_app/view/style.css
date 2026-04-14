@@ -137,21 +137,22 @@ body {
 }
 
 /* Custom Scrollbar Styling */
-.screen::-webkit-scrollbar {
+::-webkit-scrollbar {
     width: 6px;
 }
 
-.screen::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
     background: transparent;
+    margin: 12px 0 0 0;
 }
 
-.screen::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     transition: background 0.3s;
 }
 
-.screen::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
     background: var(--accent);
 }
 
@@ -323,7 +324,7 @@ input[type="range"] {
 
 .login-card {
     padding: 40px;
-    width: 350px;
+    width: 370px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -678,7 +679,7 @@ input[type="range"] {
 .custom-select.open .custom-select-trigger {
     border-color: rgba(100, 150, 255, 0.8);
     box-shadow: 0 0 10px rgba(100, 150, 255, 0.3);
-    border-radius: 12px 12px 0 0;
+    border-radius: 0 0 12px 12px;
 }
 .arrow {
     width: 8px;
@@ -697,7 +698,7 @@ input[type="range"] {
 .custom-options {
     position: absolute;
     display: block;
-    top: 100%;
+    bottom: 100%;
     left: 0;
     right: 0;
     border: 1px solid rgba(100, 150, 255, 0.4);
@@ -705,7 +706,7 @@ input[type="range"] {
     background: rgba(10, 10, 20, 0.45);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border-radius: 0 0 12px 12px;
+    border-radius: 12px 12px 0 0;
     margin-top: 0;
     opacity: 0;
     visibility: hidden;

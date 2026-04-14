@@ -41,8 +41,8 @@ const statusText = document.getElementById('status-text');
 const progressBar = document.getElementById('progress-bar');
 const loginOverlay = document.getElementById('login-overlay');
 
-let currentVersion = 'KsuSerVer Season 2';
-let gameVersion = '1.21.1';
+let modpackName = 'KsuSerVer Season 2';
+//let gameVersion = '1.21.1';
 
 // Custom dropdown logic
 function initCustomSelect() {
@@ -69,14 +69,14 @@ function initCustomSelect() {
             if (version.name === savedVersion || i === 0) {
                 opt.classList.add('selected');
                 triggerText.textContent = opt.textContent;
-                currentVersion = version.name;
+                modpackName = version.name;
             }
             opt.addEventListener('click', (e) => {
                 e.stopPropagation();
                 optionsContainer.querySelectorAll('.custom-option').forEach(o => o.classList.remove('selected'));
                 opt.classList.add('selected');
                 triggerText.textContent = opt.textContent;
-                currentVersion = version.name;
+                modpackName = version.name;
                 eel.save_settings({ selected_version: version.name });
                 select.classList.remove('open');
                 add_log(`Версия выбрана: ${version.name}`);
@@ -103,7 +103,7 @@ playBtn.addEventListener('click', async () => {
     statusText.textContent = "Инициализация...";
     progressBar.style.width = '5%';
     // Start installation/launch process
-    eel.start_launch(currentVersion);
+    eel.start_launch(modpackName);
 });
 
 // Login UI handlers
@@ -247,7 +247,7 @@ if (updateBtn) {
         updateBtn.classList.add('disabled');
         updateBtn.textContent = "ЗАГРУЗКА...";
         add_log("Запуск принудительного обновления модпака...");
-        eel.update_modpack(currentVersion);
+        eel.update_modpack(modpackName);
         // Reset button after some time or via a status check
         // For now, we'll let the user wait for the status text to finish
         setTimeout(() => {
@@ -329,16 +329,16 @@ async function loadResourcePacks() {
     add_log(`Загрузка ${currentModrinthType === 'shader' ? 'шейдеров' : 'ресурспаков'}...`);
     rpGrid.innerHTML = '<div class="status-msg">Синхронизация базы Modrinth...</div>';
     rpPagination.innerHTML = '';
-    gameVersion = '1.21.1'; // динамическая подгрузка версий
-    const versions = await eel.get_versions_list()();
-    for (let i = 0; i < versions.length; i++) {
-        if (versions[i].name === currentVersion) {
-            gameVersion = versions[i].minecraft_version;
-            break;
-        }
-    }
+//    gameVersion = '1.21.1'; // динамическая подгрузка версий
+//    const versions = await eel.get_versions_list()();
+//    for (let i = 0; i < versions.length; i++) {
+//        if (versions[i].name === modpackName) {
+//            gameVersion = versions[i].minecraft_version;
+//            break;
+//        }
+//    }
     // Fetch from backend
-    const result = await eel.search_modrinth(currentRPQuery, gameVersion, currentModrinthType, currentRPPage)();
+    const result = await eel.search_modrinth(currentRPQuery, modpackName, currentModrinthType, currentRPPage)();
     if (result.error) {
         rpGrid.innerHTML = `<div class="status-msg" style="color: #ef4444;">Ошибка: ${result.error}</div>`;
         return;
@@ -380,7 +380,7 @@ function renderRPCards(hits) {
             installBtn.textContent = '...';
             installBtn.classList.add('disabled');
             const folder = currentModrinthType === 'shader' ? 'shaderpacks' : 'resourcepacks'; // Determine target folder
-            const res = await eel.install_modrinth(hit.project_id, gameVersion, folder)();
+            const res = await eel.install_modrinth(hit.project_id, modpackName, folder)();
             if (res.success) {
                 installBtn.textContent = 'ГОТОВО!';
                 installBtn.style.background = '#22c55e';
@@ -473,7 +473,7 @@ async function loadMods() {
     const list = document.getElementById('mods-list');
     list.innerHTML = '<div class="status-msg">Загрузка модов...</div>';
     try {
-        allMods = await eel.get_mods_list()();
+        allMods = await eel.get_mods_list(modpackName)();
         renderMods(allMods);
     } catch(e) {
         list.innerHTML = '<div class="status-msg" style="color:#ef4444;">Ошибка загрузки</div>';
@@ -512,7 +512,7 @@ function renderMods(mods) {
             const delBtn = item.querySelector('.mod-delete-btn');
             delBtn.addEventListener('click', async () => {
                 delBtn.innerHTML = '...'; delBtn.style.pointerEvents = 'none';
-                const res = await eel.delete_user_mod(mod.filename)();
+                const res = await eel.delete_user_mod(mod.filename, modpackName)();
                 if (res.success) {
                     item.style.opacity = '0'; item.style.transform = 'translateX(20px)';
                     setTimeout(() => { item.remove(); add_log(`Мод удалён: ${mod.filename}`); }, 300);
@@ -531,11 +531,11 @@ document.getElementById('mods-search-input').addEventListener('input', () => ren
 
 // Добавить мод
 document.getElementById('add-mod-btn').addEventListener('click', async () => {
-    const path = await eel.pick_jar_file()();
+    const path = await eel.pick_jar_file(modpackName)();
     if (!path) return;
     const btn = document.getElementById('add-mod-btn');
     btn.textContent = 'Копирование...'; btn.style.opacity = '0.6';
-    const res = await eel.add_user_mod(path)();
+    const res = await eel.add_user_mod(path, modpackName)();
     btn.textContent = '+ Добавить мод'; btn.style.opacity = '1';
     if (res.success) {
         add_log(`Мод добавлен: ${res.filename}`);

@@ -133,7 +133,6 @@ class LauncherAPI:
     # Основной метод установки и запуска. Поддерживает быстрый запуск
     def download_and_launch(self, version_name, report_callback, force_update=False):
         try:
-            game_dir = os.path.abspath(self.settings.get("path", self.minecraft_dir))
             info = {}
             for v in self.versions_data:
                 if version_name == v.get('name'):
@@ -141,6 +140,7 @@ class LauncherAPI:
             if not info:
                 report_callback(f"Ошибка: Версия не найдена", 0)
                 return
+            game_dir = os.path.abspath(self.settings.get("path", self.minecraft_dir))+"\\"+info['name']
             loader = minecraft_launcher_lib.mod_loader.get_mod_loader(info['modloader'])
             version_id = loader.get_installed_version(info['minecraft_version'], info['modloader_version'])
             version_path = os.path.join(game_dir, "versions", version_id)
@@ -176,12 +176,12 @@ class LauncherAPI:
                     except: java_path = "java"
                     loader.install(info['minecraft_version'], game_dir, loader_version=info['modloader_version'], java=java_path)
                 # Servers list — only on first install
-                try:
-                    report_callback("Загрузка списка серверов...", 75)
-                    servers_dat_path = os.path.join(game_dir, "servers.dat")
-                    gdown.download(id="1ojv4-e3R_RA8r2Ngrxg57bT2wac-dHq0", output=servers_dat_path, quiet=True)
-                except Exception:
-                    pass
+                # try:
+                #     report_callback("Загрузка списка серверов...", 75)
+                #     servers_dat_path = os.path.join(game_dir, "servers.dat")
+                #     gdown.download(id="1ojv4-e3R_RA8r2Ngrxg57bT2wac-dHq0", output=servers_dat_path, quiet=True)
+                # except Exception:
+                #     pass
             else:
                 report_callback("Найден готовый клиент...", 40)
             # 3. Modpack (Smart Start Skip)
@@ -203,6 +203,8 @@ class LauncherAPI:
                 "token": self.current_user["access_token"] if self.current_user else "token",
                 "jvmArguments": [f"-javaagent:{self.authlib_injector}={AUTHLIB_URL}", "-Dauthlibinjector.noLogFile", f"-Xmx{self.settings.get('ram', 4096)}M"] if self.current_user else []
             }
+            # Формирование команды запуска майна
+            # warning указывает на то что переменная может быть не проинициализирована
             cmd = minecraft_launcher_lib.command.get_minecraft_command(version_id, game_dir, options)
             proc = subprocess.Popen(cmd, cwd=game_dir, creationflags=subprocess.CREATE_NO_WINDOW)
             threading.Thread(target=lambda: proc.wait(), daemon=True).start()
@@ -221,14 +223,19 @@ class LauncherAPI:
     def open_url(self, url):
         webbrowser.open(url)
 
-    def search_modrinth(self, query, version, project_type, page=1, limit=12):
+    def search_modrinth(self, query, version_name, project_type, page=1, limit=12):
         try:
+            info = {}
+            for v in self.versions_data:
+                if version_name == v.get('name'):
+                    info = v; break
+            version = info['minecraft_version']
             offset = (page - 1) * limit
             # Optimized version check
             search_version = version
             if version.count('.') > 1:
                 search_version = '.'.join(version.split('.')[:2])
-            headers = {"User-Agent": "KsuLauncher/0.1.0"}
+            headers = {"User-Agent": "KsuLauncher/0.1.1"}
             # project_type can be 'resourcepack' or 'shader'
             base_url = "https://api.modrinth.com/v2/search"
             facets = f'[["project_type:{project_type}"],["versions:{version}"]]'
@@ -248,9 +255,14 @@ class LauncherAPI:
             return {"hits": [], "total_hits": 0, "error": f"сбой сети"}
 
 
-    def install_modrinth_project(self, project_id, version, folder_name):
+    def install_modrinth_project(self, project_id, version_name, folder_name):
         try:
-            headers = {"User-Agent": "KsuLauncher/0.1.0"}
+            info = {}
+            for v in self.versions_data:
+                if version_name == v.get('name'):
+                    info = v; break
+            version = info['minecraft_version']
+            headers = {"User-Agent": "KsuLauncher/0.1.1"}
             # Find compatible versions
             url = f"https://api.modrinth.com/v2/project/{project_id}/version?game_versions=[\"{version}\"]"
             res = requests.get(url, headers=headers, timeout=10)
@@ -262,7 +274,7 @@ class LauncherAPI:
             dl_url = file_info['url']
             fname = file_info['filename']
             # Target folder (resourcepacks or shaderpacks)
-            game_dir = self.settings.get("path", self.minecraft_dir)
+            game_dir = self.settings.get("path", self.minecraft_dir)+"\\"+info['name']
             target_dir = os.path.join(game_dir, folder_name)
             os.makedirs(target_dir, exist_ok=True)
             # Download
@@ -314,13 +326,13 @@ class LauncherAPI:
     # ====== MOD MANAGEMENT ======
     USER_MODS_FILE = "user_mods.json"
 
-    def _get_mods_dir(self):
-        game_dir = self.settings.get("path", self.minecraft_dir)
+    def _get_mods_dir(self, version_name):
+        game_dir = self.settings.get("path", self.minecraft_dir)+"\\"+version_name
         return os.path.join(game_dir, "mods")
 
-    def _load_user_mods_registry(self):
+    def _load_user_mods_registry(self, version_name):
         """Returns a set of filenames that were added by the user."""
-        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)+"\\"+version_name
         if os.path.exists(registry_path):
             try:
                 with open(registry_path, 'r', encoding='utf-8') as f:
@@ -328,15 +340,15 @@ class LauncherAPI:
             except: pass
         return set()
 
-    def _save_user_mods_registry(self, registry: set):
-        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)
+    def _save_user_mods_registry(self, version_name, registry: set):
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)+"\\"+version_name
         with open(registry_path, 'w', encoding='utf-8') as f:
             json.dump(list(registry), f, indent=2)
 
-    def get_mods_list(self):
+    def get_mods_list(self, version_name):
         """Returns list of {name, filename, is_user_mod} for all .jar files in mods dir."""
-        mods_dir = self._get_mods_dir()
-        user_mods = self._load_user_mods_registry()
+        mods_dir = self._get_mods_dir(version_name)
+        user_mods = self._load_user_mods_registry(version_name)
         result = []
         if not os.path.exists(mods_dir):
             return result
@@ -352,47 +364,47 @@ class LauncherAPI:
         # Auto-clean stale entries from user_mods registry
         stale = user_mods - actual_jars
         if stale:
-            self._save_user_mods_registry(user_mods - stale)
+            self._save_user_mods_registry(user_mods - stale, version_name)
         return result
 
-    def add_user_mod(self, src_path):
+    def add_user_mod(self, src_path, version_name):
         """Copy a .jar file to the mods folder and register it as a user mod."""
         try:
             if not src_path or not src_path.lower().endswith('.jar'):
                 return {'success': False, 'error': 'Только .jar файлы!'}
-            mods_dir = self._get_mods_dir()
+            mods_dir = self._get_mods_dir(version_name)
             os.makedirs(mods_dir, exist_ok=True)
             fname = os.path.basename(src_path)
             dest = os.path.join(mods_dir, fname)
             shutil.copy2(src_path, dest)
-            registry = self._load_user_mods_registry()
+            registry = self._load_user_mods_registry(version_name)
             registry.add(fname)
-            self._save_user_mods_registry(registry)
+            self._save_user_mods_registry(registry, version_name)
             return {'success': True, 'filename': fname}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def delete_user_mod(self, filename):
+    def delete_user_mod(self, filename, version_name):
         """Delete a user-added mod from the mods folder."""
         try:
-            registry = self._load_user_mods_registry()
+            registry = self._load_user_mods_registry(version_name)
             if filename not in registry:
                 return {'success': False, 'error': 'Нельзя удалить мод из модпака'}
-            mods_dir = self._get_mods_dir()
+            mods_dir = self._get_mods_dir(version_name)
             path = os.path.join(mods_dir, filename)
             if os.path.exists(path):
                 os.remove(path)
             registry.discard(filename)
-            self._save_user_mods_registry(registry)
+            self._save_user_mods_registry(registry, version_name)
             return {'success': True}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def pick_jar_file(self):
+    def pick_jar_file(self, version_name):
         """Open file dialog to pick a .jar file."""
         root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
         path = filedialog.askopenfilename(
-            initialdir=self._get_mods_dir(),
+            initialdir=self._get_mods_dir(version_name),
             filetypes=[("JAR files", "*.jar")]
         )
         root.destroy()
