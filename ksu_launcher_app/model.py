@@ -14,7 +14,9 @@ from tkinter import filedialog
 import gdown
 import minecraft_launcher_lib
 from nbt import nbt
-import pandas as pd
+import csv
+import urllib.request
+import math
 
 VERSIONS_URL = 'https://docs.google.com/spreadsheets/d/1rW6vIDIhrlXweWmcSU3eNVbSrhQjxs346XdkWJlaNUw/export?format=csv'
 AUTHLIB_URL = "https://authserver.ely.by"
@@ -28,6 +30,7 @@ class LauncherAPI:
         self.versions_data = []
         self.selected_version = None
         self.current_user = None
+        self.USER_MODS_FILE = "user_mods.json"
         # Файлы конфигурации
         self.settings_file = os.path.join(self.minecraft_dir, "ksuserver_settings.json")
         self.versions_file = os.path.join(self.minecraft_dir, "ksuserver_versions.json")
@@ -194,7 +197,6 @@ class LauncherAPI:
             if info['serv_entry']:
                 self.add_server_to_list(game_dir, version_name, info['serv_entry'])
                 report_callback("Загрузка серверов...", 90)
-
             # 5. Launch
             report_callback("Запуск игры!", 100)
             options = {
@@ -222,6 +224,7 @@ class LauncherAPI:
 
     def open_url(self, url):
         webbrowser.open(url)
+
 
     def search_modrinth(self, query, version_name, project_type, page=1, limit=12):
         try:
@@ -324,11 +327,10 @@ class LauncherAPI:
 
 
     # ====== MOD MANAGEMENT ======
-    USER_MODS_FILE = "user_mods.json"
-
     def _get_mods_dir(self, version_name):
         game_dir = self.settings.get("path", self.minecraft_dir)+"\\"+version_name
         return os.path.join(game_dir, "mods")
+
 
     def _load_user_mods_registry(self, version_name):
         """Returns a set of filenames that were added by the user."""
@@ -340,10 +342,12 @@ class LauncherAPI:
             except: pass
         return set()
 
+
     def _save_user_mods_registry(self, version_name, registry: set):
         registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)+"\\"+version_name
         with open(registry_path, 'w', encoding='utf-8') as f:
             json.dump(list(registry), f, indent=2)
+
 
     def get_mods_list(self, version_name):
         """Returns list of {name, filename, is_user_mod} for all .jar files in mods dir."""
@@ -367,6 +371,7 @@ class LauncherAPI:
             self._save_user_mods_registry(user_mods - stale, version_name)
         return result
 
+
     def add_user_mod(self, src_path, version_name):
         """Copy a .jar file to the mods folder and register it as a user mod."""
         try:
@@ -384,6 +389,7 @@ class LauncherAPI:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+
     def delete_user_mod(self, filename, version_name):
         """Delete a user-added mod from the mods folder."""
         try:
@@ -400,6 +406,7 @@ class LauncherAPI:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+
     def pick_jar_file(self, version_name):
         """Open file dialog to pick a .jar file."""
         root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
@@ -409,6 +416,7 @@ class LauncherAPI:
         )
         root.destroy()
         return path.replace("/", "\\") if path else None
+
 
     # Для работы authlib-injector в пакете
     def resource_path(self, relative_path):
@@ -431,20 +439,37 @@ class LauncherAPI:
     # Получение списка версий с облака или из сохранённого файла конфигурации
     def get_versions_list(self):
         try:
-            df_local = pd.read_csv(VERSIONS_URL)
-            self.versions_data = []
-            for idx, row in df_local.iterrows():
-                v_info = {
-                    'name': str(row.iloc[0]),
-                    'modloader': row.iloc[1] if pd.notna(row.iloc[1]) else 'neoforge',
-                    'minecraft_version': row.iloc[2] if pd.notna(row.iloc[2]) else '1.21.1',
-                    'modloader_version': row.iloc[3] if pd.notna(row.iloc[3]) else '21.1.221',
-                    'id_archive': row.iloc[4] if pd.notna(row.iloc[4]) else '',
-                    'serv_entry': row.iloc[5] if pd.notna(row.iloc[5]) else '',
-                    'modloader-id': row.iloc[6] if pd.notna(row.iloc[6]) else ''
-                }
-                self.versions_data.append(v_info)
+            with urllib.request.urlopen(VERSIONS_URL) as response:
+                content = response.read().decode('utf-8')
+                csv_reader = csv.reader(content.splitlines())
+                data = list(csv_reader)
+                flag = True
+                for row in data:
+                    if flag:
+                        flag = False
+                    else:
+                        v_info = {
+                            'name': str(row[0]),
+                            'modloader': row[1] if self.notnaV(row[1]) else 'neoforge',
+                            'minecraft_version': row[2] if self.notnaV(row[2]) else '1.21.1',
+                            'modloader_version': row[3] if self.notnaV(row[3]) else '21.1.221',
+                            'id_archive': row[4] if self.notnaV(row[4]) else '',
+                            'serv_entry': row[5] if self.notnaV(row[5]) else '',
+                            'modloader-id': row[6] if self.notnaV(row[6]) else ''
+                        }
+                        self.versions_data.append(v_info)
                 self.save_versions_file({}, self.versions_data, self.versions_file)
             return self.versions_data
         except:
             return self.load_versions_file(self.versions_file)
+
+
+    def notnaV(self, value):
+        """Аналог pd.notna() для одного значения"""
+        if value is None:
+            return False
+        if isinstance(value, float) and math.isnan(value):
+            return False
+        if isinstance(value, (str, bytes)) and value == '':
+            return False
+        return True
