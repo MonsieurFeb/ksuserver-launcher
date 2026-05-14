@@ -676,11 +676,7 @@ input[type="range"] {
 .custom-select-trigger:hover {
     border-color: rgba(100, 150, 255, 0.5);
 }
-.custom-select.open .custom-select-trigger {
-    border-color: rgba(100, 150, 255, 0.8);
-    box-shadow: 0 0 10px rgba(100, 150, 255, 0.3);
-    border-radius: 0 0 12px 12px;
-}
+
 .arrow {
     width: 8px;
     height: 8px;
@@ -695,35 +691,56 @@ input[type="range"] {
     margin-top: 4px;
     margin-bottom: 0px;
 }
+
 .custom-options {
     position: absolute;
     display: block;
-    bottom: 100%;
     left: 0;
     right: 0;
     border: 1px solid rgba(100, 150, 255, 0.4);
-    border-top: 0;
     background: rgba(10, 10, 20, 0.45);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border-radius: 12px 12px 0 0;
-    margin-top: 0;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translateY(-6px);
     transition: all 0.25s ease;
     z-index: 100;
     max-height: 200px;
     overflow-y: auto;
     overflow-x: hidden;
 }
+
 .custom-select.open .custom-options {
     opacity: 1;
     visibility: visible;
     pointer-events: all;
-    transform: translateY(0);
+    transform: translateY(0) !important;
 }
+
+/* Home Screen (Version Select) - Opens UP */
+#custom-version-select .custom-options {
+    bottom: 100%;
+    border-radius: 12px 12px 0 0;
+    transform: translateY(-6px);
+}
+#custom-version-select .custom-select.open .custom-select-trigger {
+    border-radius: 0 0 12px 12px;
+}
+
+/* Settings Screen (Install Method) - Opens DOWN */
+#custom-install-method-select .custom-options {
+    top: 100%;
+    border-radius: 0 0 12px 12px;
+    transform: translateY(6px);
+    border-top: 0;
+}
+#custom-install-method-select .custom-select.open .custom-select-trigger {
+    border-radius: 12px 12px 0 0;
+    border-color: rgba(100, 150, 255, 0.8);
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.3);
+}
+
 .custom-option {
     padding: 12px 16px;
     cursor: pointer;

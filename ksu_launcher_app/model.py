@@ -13,6 +13,9 @@ import tkinter as tk
 from tkinter import filedialog
 import gdown
 import minecraft_launcher_lib
+from minecraft_launcher_lib._helper import SUBPROCESS_STARTUP_INFO
+from minecraft_launcher_lib.vanilla_launcher import do_vanilla_launcher_profiles_exists, \
+    create_empty_vanilla_launcher_profiles_file
 from nbt import nbt
 import csv
 import urllib.request
@@ -45,9 +48,12 @@ class LauncherAPI:
         if os.path.exists(self.settings_file):
             try:
                 with open(self.settings_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if "install_method" not in data:
+                        data["install_method"] = "official"
+                    return data
             except: pass
-        return {"path": self.minecraft_dir, "ram": 4096}
+        return {"path": self.minecraft_dir, "ram": 4096, "install_method": "official"}
 
 
     def save_settings(self, new_settings):
@@ -121,20 +127,51 @@ class LauncherAPI:
             os.remove(output)
 
 
-    def _download_modloader(self, info, game_dir, report_callback):
-        path_text = game_dir
-        output = os.path.join(path_text, "archive1.zip")
-        report_callback("Загрузка модлоадера...", 40)
-        gdown.download(id=info['modloader-id'], output=output, quiet=True)
-        if os.path.exists(output):
-            report_callback("Распаковка...", 50)
-            with zipfile.ZipFile(output, 'r') as zip_ref:
-                zip_ref.extractall(path_text)
-            os.remove(output)
+    # def _download_modloader(self, info, game_dir, report_callback):
+    #     path_text = game_dir
+    #     output = os.path.join(path_text, "archive1.zip")
+    #     report_callback("Загрузка модлоадера...", 40)
+    #     gdown.download(id=info['modloader-id'], output=output, quiet=True)
+    #     if os.path.exists(output):
+    #         report_callback("Распаковка...", 50)
+    #         with zipfile.ZipFile(output, 'r') as zip_ref:
+    #             zip_ref.extractall(path_text)
+    #         os.remove(output)
+
+
+    def modloader_custom_install(self, minecraft_directory, report_callback, fat_installer_id, java, callback=None):
+        cb = callback if callback else {"setStatus": lambda x: None, "setProgress": lambda x: None, "setMax": lambda x: None}
+
+        if not do_vanilla_launcher_profiles_exists(minecraft_directory):
+            create_empty_vanilla_launcher_profiles_file(minecraft_directory)
+
+        tempdir = minecraft_directory
+        installer_path = os.path.join(tempdir, "fat-installer.jar")
+
+        report_callback("Загрузка загрузчика (Зеркало)...", 45)
+        gdown.download(id=fat_installer_id, output=installer_path, quiet=True)
+
+        if os.path.exists(installer_path):
+            report_callback("Установка загрузчика (Зеркало)...", 55)
+            if "setStatus" in cb: cb["setStatus"]("Running fat installer")
+
+            subprocess.run(
+                [java, "-jar", installer_path, "--install-client", minecraft_directory],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=tempdir,
+                check=True,
+                startupinfo=SUBPROCESS_STARTUP_INFO
+            )
+
+            os.remove(installer_path)
+        else:
+            report_callback("Зеркало не работает.", 55)
+            raise Exception("Не удалось скачать установщик с Google Drive")
 
 
     # Основной метод установки и запуска. Поддерживает быстрый запуск
-    def download_and_launch(self, version_name, report_callback, force_update=False):
+    def download_and_launch(self, version_name, report_callback, force_update=False, only_modpack=False):
         try:
             info = {}
             for v in self.versions_data:
@@ -147,46 +184,61 @@ class LauncherAPI:
             loader = minecraft_launcher_lib.mod_loader.get_mod_loader(info['modloader'])
             version_id = loader.get_installed_version(info['minecraft_version'], info['modloader_version'])
             version_path = os.path.join(game_dir, "versions", version_id)
-            # 1. Minecraft & Runtime (with Retry Logic for [Errno 13] Permission denied)
-            if not os.path.exists(version_path) or force_update:
-                report_callback("Установка Minecraft...", 10)
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        minecraft_launcher_lib.install.install_minecraft_version(info['minecraft_version'], game_dir)
-                        # If success, break the retry loop
-                        break
-                    except PermissionError as pe:
-                        if attempt < max_retries - 1:
-                            report_callback(f"Ожидание доступа (попытка {attempt+1}/{max_retries})...", 20)
-                            time.sleep(1.5) # Wait for antivirus/system lock
-                        else:
-                            # Final failure suggest fix
-                            err_msg = str(pe)
-                            if "Permission denied" in err_msg or "WinError 5" in err_msg:
-                                report_callback("ОШИБКА ДОСТУПА: Попробуйте сменить папку игры в Настройках на путь без русских букв (например, C:\\Games\\Ksu).", 0)
-                                return
-                            raise pe
-            # 2. Install modloader (Smart Start Skip)
-                if info['modloader-id']:
-                    self._download_modloader(info, game_dir, report_callback)
-                else:
-                    report_callback("Установка загрузчика...", 40)
+            if not only_modpack:
+                # 1. Minecraft & Runtime (with Retry Logic for [Errno 13] Permission denied)
+                if not os.path.exists(version_path) or force_update:
+                    report_callback("Установка Minecraft...", 10)
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            minecraft_launcher_lib.install.install_minecraft_version(info['minecraft_version'], game_dir)
+                            # If success, break the retry loop
+                            break
+                        except PermissionError as pe:
+                            if attempt < max_retries - 1:
+                                report_callback(f"Ожидание доступа (попытка {attempt+1}/{max_retries})...", 20)
+                                time.sleep(1.5) # Wait for antivirus/system lock
+                            else:
+                                # Final failure suggest fix
+                                err_msg = str(pe)
+                                if "Permission denied" in err_msg or "WinError 5" in err_msg:
+                                    report_callback("ОШИБКА ДОСТУПА: Попробуйте сменить папку игры в Настройках на путь без русских букв (например, C:\\Games\\Ksu).", 0)
+                                    return
+                                raise pe
+                # 2. Install modloader (Smart Start Skip)
+                    # Java path
+                    modloader_flag = False
                     dummy_opts = minecraft_launcher_lib.utils.generate_test_options()
                     try:
                         vm = minecraft_launcher_lib.command.get_minecraft_command(info['minecraft_version'], game_dir, dummy_opts)
                         java_path = vm[0]
                     except: java_path = "java"
-                    loader.install(info['minecraft_version'], game_dir, loader_version=info['modloader_version'], java=java_path)
-                # Servers list — only on first install
-                # try:
-                #     report_callback("Загрузка списка серверов...", 75)
-                #     servers_dat_path = os.path.join(game_dir, "servers.dat")
-                #     gdown.download(id="1ojv4-e3R_RA8r2Ngrxg57bT2wac-dHq0", output=servers_dat_path, quiet=True)
-                # except Exception:
-                #     pass
+
+                    # SMART PATCH for NeoForge Mirror (Fat Installer from Google Drive)
+                    if self.settings.get("install_method") == "mirror":
+                        if info['modloader-id']:
+                            try:
+                                # Apply the custom install method to the loader instance
+                                self.modloader_custom_install(game_dir, report_callback, fat_installer_id=info['modloader-id'], java=java_path)
+                                print("DEBUG: Custom Fat Installer logic applied for NeoForge")
+                            except Exception as patch_err:
+                                modloader_flag = True
+                                print(f"DEBUG: Failed to apply fat installer patch: {patch_err}")
+                        else:
+                            report_callback("Зеркало отсутствует, пробуем как обычно", 35)
+                            modloader_flag = True
+                    else:
+                        modloader_flag = True
+
+                    # Default installation
+                    if modloader_flag:
+                        report_callback("Установка загрузчика...", 40)
+                        loader.install(info['minecraft_version'], game_dir, loader_version=info['modloader_version'], java=java_path)
+                else:
+                    report_callback("Найден готовый клиент...", 40)
             else:
-                report_callback("Найден готовый клиент...", 40)
+                report_callback("Подготовка к обновлению модпака...", 20)
+
             # 3. Modpack (Smart Start Skip)
             mods_dir = os.path.join(game_dir, "mods")
             if not os.path.exists(mods_dir) or not os.listdir(mods_dir) or force_update:
@@ -238,7 +290,7 @@ class LauncherAPI:
             search_version = version
             if version.count('.') > 1:
                 search_version = '.'.join(version.split('.')[:2])
-            headers = {"User-Agent": "KsuLauncher/0.1.1"}
+            headers = {"User-Agent": "KsuLauncher/0.1.2"}
             # project_type can be 'resourcepack' or 'shader'
             base_url = "https://api.modrinth.com/v2/search"
             facets = f'[["project_type:{project_type}"],["versions:{version}"]]'
@@ -265,7 +317,7 @@ class LauncherAPI:
                 if version_name == v.get('name'):
                     info = v; break
             version = info['minecraft_version']
-            headers = {"User-Agent": "KsuLauncher/0.1.1"}
+            headers = {"User-Agent": "KsuLauncher/0.1.2"}
             # Find compatible versions
             url = f"https://api.modrinth.com/v2/project/{project_id}/version?game_versions=[\"{version}\"]"
             res = requests.get(url, headers=headers, timeout=10)

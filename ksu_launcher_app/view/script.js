@@ -200,6 +200,10 @@ async function init() {
     if (settings.path) {
         pathInput.value = settings.path;
     }
+    const installMethodWrapper = document.getElementById('custom-install-method-select');
+    if (installMethodWrapper && settings.install_method) {
+        installMethodWrapper._setValue(settings.install_method);
+    }
     loadVersions(settings); // Pre-load versions in background
     //    eel.get_versions_list()(); - заменено строкой выше
     // Save manually edited path
@@ -252,7 +256,24 @@ if (updateBtn) {
         // For now, we'll let the user wait for the status text to finish
         setTimeout(() => {
             updateBtn.classList.remove('disabled');
-            updateBtn.textContent = "УСТАНОВИТЬ ОБНОВЛЕНИЕ";
+            updateBtn.textContent = "ТОЛЬКО МОДПАК";
+        }, 10000); // 10s cooldown/buffer
+    });
+}
+
+const updateFullBtn = document.getElementById('update-full-btn');
+if (updateFullBtn) {
+    updateFullBtn.addEventListener('click', () => {
+        if (updateFullBtn.classList.contains('disabled')) return;
+        updateFullBtn.classList.add('disabled');
+        updateFullBtn.textContent = "ЗАГРУЗКА...";
+        add_log("Запуск принудительного обновления модпака...");
+        eel.full_update(modpackName);
+        // Reset button after some time or via a status check
+        // For now, we'll let the user wait for the status text to finish
+        setTimeout(() => {
+            updateFullBtn.classList.remove('disabled');
+            updateFullBtn.textContent = "ПОЛНОСТЬЮ";
         }, 10000); // 10s cooldown/buffer
     });
 }
@@ -459,9 +480,49 @@ async function loadVersions(settings) {
     }
 }
 
+// Custom dropdown logic for installation method
+function initInstallMethodSelect() {
+    const wrapper = document.getElementById('custom-install-method-select');
+    if (!wrapper) return;
+    const select = wrapper.querySelector('.custom-select');
+    const trigger = wrapper.querySelector('.custom-select-trigger');
+    const triggerText = wrapper.querySelector('.custom-select-text');
+    const optionsContainer = wrapper.querySelector('.custom-options');
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        select.classList.toggle('open');
+    });
+    document.addEventListener('click', () => select.classList.remove('open'));
+
+    const options = optionsContainer.querySelectorAll('.custom-option');
+    options.forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            options.forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            triggerText.textContent = opt.textContent;
+            const value = opt.dataset.value;
+            eel.save_settings({ install_method: value });
+            select.classList.remove('open');
+            add_log(`Способ установки изменен на: ${opt.textContent}`);
+        });
+    });
+
+    wrapper._setValue = function(value) {
+        const opt = Array.from(options).find(o => o.dataset.value === value);
+        if (opt) {
+            options.forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            triggerText.textContent = opt.textContent;
+        }
+    };
+}
+
 // Обработчики событий
 document.addEventListener('DOMContentLoaded', () => {
     initCustomSelect();
+    initInstallMethodSelect();
 });
 
 init();

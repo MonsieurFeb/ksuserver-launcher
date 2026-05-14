@@ -30,6 +30,12 @@ def start_launch(version_name):
 def update_modpack(version_name):
     def report(text, p):
         eel.update_status(text, p)()
+    threading.Thread(target=launcher.download_and_launch, args=(version_name, report, True, True), daemon=True).start()
+
+@eel.expose
+def full_update(version_name):
+    def report(text, p):
+        eel.update_status(text, p)()
     threading.Thread(target=launcher.download_and_launch, args=(version_name, report, True), daemon=True).start()
 
 @eel.expose
