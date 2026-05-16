@@ -114,8 +114,7 @@ class LauncherAPI:
         if not info['id_archive']:
             return
         mods_dir = os.path.join(game_dir, "mods")
-        path_text = game_dir
-        output = os.path.join(path_text, "archive.zip")
+        output = os.path.join(game_dir, "archive.zip")
         report_callback("Загрузка модов...", 60)
         gdown.download(id=info['id_archive'], output=output, quiet=True)
         if os.path.exists(output):
@@ -123,7 +122,7 @@ class LauncherAPI:
             if os.path.exists(mods_dir):
                 shutil.rmtree(mods_dir)
             with zipfile.ZipFile(output, 'r') as zip_ref:
-                zip_ref.extractall(path_text)
+                zip_ref.extractall(game_dir)
             os.remove(output)
 
 
@@ -139,14 +138,13 @@ class LauncherAPI:
     #         os.remove(output)
 
 
-    def modloader_custom_install(self, minecraft_directory, report_callback, fat_installer_id, java, callback=None):
+    def mirror_install_neoforge(self, target_directory, report_callback, fat_installer_id, java, callback=None):
         cb = callback if callback else {"setStatus": lambda x: None, "setProgress": lambda x: None, "setMax": lambda x: None}
 
-        if not do_vanilla_launcher_profiles_exists(minecraft_directory):
-            create_empty_vanilla_launcher_profiles_file(minecraft_directory)
+        if not do_vanilla_launcher_profiles_exists(target_directory):
+            create_empty_vanilla_launcher_profiles_file(target_directory)
 
-        tempdir = minecraft_directory
-        installer_path = os.path.join(tempdir, "fat-installer.jar")
+        installer_path = os.path.join(target_directory, "fat-installer.jar")
 
         report_callback("Загрузка загрузчика (Зеркало)...", 45)
         gdown.download(id=fat_installer_id, output=installer_path, quiet=True)
@@ -156,15 +154,62 @@ class LauncherAPI:
             if "setStatus" in cb: cb["setStatus"]("Running fat installer")
 
             subprocess.run(
-                [java, "-jar", installer_path, "--install-client", minecraft_directory],
+                [java, "-jar", installer_path, "--install-client", target_directory],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                cwd=tempdir,
+                cwd=target_directory,
                 check=True,
                 startupinfo=SUBPROCESS_STARTUP_INFO
             )
 
             os.remove(installer_path)
+        else:
+            report_callback("Зеркало не работает.", 55)
+            raise Exception("Не удалось скачать установщик с Google Drive")
+
+
+    def mirror_install_forge(self, target_directory, report_callback, fat_installer_id, java, info, callback=None):
+        cb = callback if callback else {"setStatus": lambda x: None, "setProgress": lambda x: None, "setMax": lambda x: None}
+
+        if not do_vanilla_launcher_profiles_exists(target_directory):
+            create_empty_vanilla_launcher_profiles_file(target_directory)
+
+        installer_path = os.path.join(target_directory, "fat-installer.jar")
+        output = os.path.join(target_directory, "modloader.zip")
+        natives_folder = os.path.join(target_directory, "versions", str(info['minecraft_version']), "natives")
+
+        report_callback("Загрузка загрузчика (Зеркало)...", 45)
+        gdown.download(id=fat_installer_id, output=output, quiet=True)
+
+        if os.path.exists(output) and os.path.exists(natives_folder):
+            report_callback("Установка загрузчика (Зеркало)...", 55)
+            if "setStatus" in cb: cb["setStatus"]("Running fat installer")
+
+            with zipfile.ZipFile(output, 'r') as zip_ref:
+                zip_ref.extractall(target_directory)
+
+            subprocess.run(
+                [java, "-jar", installer_path, "--installClient", target_directory],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=target_directory,
+                check=True,
+                startupinfo=SUBPROCESS_STARTUP_INFO
+            )
+
+            # Копирование natives папки (папка не должна существовать, поэтому проверяем)
+            version_folder = os.path.join(target_directory, "versions", str(info['minecraft_version']+"-"+info['modloader']+"-"+info['modloader_version']))
+            version_folder_natives = os.path.join(version_folder, "natives")
+            if os.path.exists(version_folder_natives):
+                shutil.rmtree(version_folder_natives)
+            shutil.copytree(natives_folder, version_folder_natives)
+
+            # Перемещение client.jar
+            filename_client_jar = str(info['minecraft_version']+"-"+info['modloader']+"-"+info['modloader_version']+".jar")
+            shutil.move(os.path.join(target_directory, filename_client_jar), os.path.join(version_folder, filename_client_jar))
+
+            os.remove(installer_path)
+            os.remove(output)
         else:
             report_callback("Зеркало не работает.", 55)
             raise Exception("Не удалось скачать установщик с Google Drive")
@@ -219,7 +264,10 @@ class LauncherAPI:
                         if info['modloader-id']:
                             try:
                                 # Apply the custom install method to the loader instance
-                                self.modloader_custom_install(game_dir, report_callback, fat_installer_id=info['modloader-id'], java=java_path)
+                                if info['modloader'] == 'neoforge':
+                                    self.mirror_install_neoforge(game_dir, report_callback, fat_installer_id=info['modloader-id'], java=java_path)
+                                if info['modloader'] == 'forge':
+                                    self.mirror_install_forge(game_dir, report_callback, fat_installer_id=info['modloader-id'], java=java_path, info=info)
                                 print("DEBUG: Custom Fat Installer logic applied for NeoForge")
                             except Exception as patch_err:
                                 modloader_flag = True
@@ -333,7 +381,7 @@ class LauncherAPI:
             target_dir = os.path.join(game_dir, folder_name)
             os.makedirs(target_dir, exist_ok=True)
             # Download
-            dest = os.path.join(target_dir, fname)
+            dest = os.path.join(str(target_dir), fname)
             r = requests.get(dl_url, stream=True, timeout=15)
             with open(dest, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
@@ -380,13 +428,14 @@ class LauncherAPI:
 
     # ====== MOD MANAGEMENT ======
     def _get_mods_dir(self, version_name):
-        game_dir = self.settings.get("path", self.minecraft_dir)+"\\"+version_name
+        # version_name - реализация системы папок (каждая сборка в отдельной папке)
+        game_dir = os.path.join(self.settings.get("path", self.minecraft_dir), version_name)
         return os.path.join(game_dir, "mods")
 
 
     def _load_user_mods_registry(self, version_name):
         """Returns a set of filenames that were added by the user."""
-        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)+"\\"+version_name
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE, version_name)
         if os.path.exists(registry_path):
             try:
                 with open(registry_path, 'r', encoding='utf-8') as f:
@@ -396,7 +445,7 @@ class LauncherAPI:
 
 
     def _save_user_mods_registry(self, version_name, registry: set):
-        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE)+"\\"+version_name
+        registry_path = os.path.join(self.minecraft_dir, self.USER_MODS_FILE, version_name)
         with open(registry_path, 'w', encoding='utf-8') as f:
             json.dump(list(registry), f, indent=2)
 
