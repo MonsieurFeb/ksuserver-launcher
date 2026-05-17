@@ -176,12 +176,11 @@ class LauncherAPI:
 
         installer_path = os.path.join(target_directory, "fat-installer.jar")
         output = os.path.join(target_directory, "modloader.zip")
-        natives_folder = os.path.join(target_directory, "versions", str(info['minecraft_version']), "natives")
 
         report_callback("Загрузка загрузчика (Зеркало)...", 45)
         gdown.download(id=fat_installer_id, output=output, quiet=True)
 
-        if os.path.exists(output) and os.path.exists(natives_folder):
+        if os.path.exists(output):
             report_callback("Установка загрузчика (Зеркало)...", 55)
             if "setStatus" in cb: cb["setStatus"]("Running fat installer")
 
@@ -197,12 +196,9 @@ class LauncherAPI:
                 startupinfo=SUBPROCESS_STARTUP_INFO
             )
 
-            # Копирование natives папки (папка не должна существовать, поэтому проверяем)
+            # Создание natives папки
             version_folder = os.path.join(target_directory, "versions", str(info['minecraft_version']+"-"+info['modloader']+"-"+info['modloader_version']))
-            version_folder_natives = os.path.join(version_folder, "natives")
-            if os.path.exists(version_folder_natives):
-                shutil.rmtree(version_folder_natives)
-            shutil.copytree(natives_folder, version_folder_natives)
+            minecraft_launcher_lib.natives.extract_natives(info['minecraft_version'], target_directory, os.path.join(version_folder, "natives"))
 
             # Перемещение client.jar
             filename_client_jar = str(info['minecraft_version']+"-"+info['modloader']+"-"+info['modloader_version']+".jar")
